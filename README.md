@@ -1,31 +1,39 @@
 # MockIn
 
-**MockIn** is a high-performance, cross-protocol mock server for development, testing, and simulating APIs or raw socket services.
-
-Features:
--  Supports HTTP and TCP protocols
--  Multiple ports
--  Flexible matching: path, query, headers, body, regex
--  Control API for managing mocks
--  Full request/response logging
+**MockIn** is a high-performance, cross-protocol mock server for local development, testing, and automation.  
+Supports HTTP and TCP protocols with flexible request matching and a powerful control API.
 
 ---
 
-##  Quick Start
+## ✨ Features
 
-###  Download and run:
+- ✅ Supports both **HTTP** and **TCP**
+- ✅ Multiple mocks per port
+- ✅ Advanced matching:
+    - Method + Path
+    - Query params
+    - Headers
+    - Body content (exact, regex, contains, startsWith, endsWith)
+    - JSONPath
+- ✅ Default fallback mocks
+- ✅ Control API on port `9000`
+- ✅ Request/response logging
+- ✅ Dynamic add/remove mocks
+
+---
+
+## 🚀 Quick Start
 
 ```bash
 java -jar mockin-cli-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```
 
-MockIn will automatically start:
-- Port **9000** as the Control API
-- And any ports declared in your mock definitions (HTTP/TCP)
+This starts the Control API at `http://localhost:9000`  
+and automatically boots HTTP/TCP servers based on mocks.
 
 ---
 
-##  Sample `mocks.json`
+## 🧩 Sample `mocks.json`
 
 ```json
 [
@@ -47,21 +55,33 @@ MockIn will automatically start:
     "request": {
       "method": "POST",
       "path": "/submit",
-      "bodyRegex": ".*\"email\"\s*:\s*\"[^\"]+\".*"
+      "jsonPath": {
+        "$.user.email": "test@example.com"
+      }
     },
     "response": {
       "status": 200,
-      "body": "email accepted"
+      "body": "valid json"
     }
   },
   {
     "protocol": "tcp",
     "port": 5555,
     "request": {
-      "bodyRegex": "^\\d{5}$"
+      "rawContains": "HELLO"
     },
     "response": {
-      "raw": "number accepted"
+      "raw": "hello received"
+    }
+  },
+  {
+    "protocol": "tcp",
+    "port": 5555,
+    "request": {
+      "bodyRegex": "^\\d{4}$"
+    },
+    "response": {
+      "raw": "4-digit number accepted"
     }
   }
 ]
@@ -69,70 +89,96 @@ MockIn will automatically start:
 
 ---
 
-##  Control API (port 9000)
+## 📡 Control API (port `9000`)
 
-| Method | Path                 | Description                                |
-|--------|----------------------|--------------------------------------------|
-| POST   | `/api/mocks`         | Add a single mock                          |
-| POST   | `/api/mocks/upload`  | Upload `mocks.json` (multipart/form)       |
-| DELETE | `/api/mocks`         | Remove all mocks and stop servers          |
-| GET    | `/api/status`        | Get list of active mock servers            |
-| GET    | `/api/logs`          | View request/response logs                 |
+| Method | Endpoint                            | Description                             |
+|--------|-------------------------------------|-----------------------------------------|
+| POST   | `/api/mocks`                        | Add a single mock (JSON)                |
+| POST   | `/api/mocks/upload`                 | Upload mocks.json (multipart/form)      |
+| GET    | `/api/status`                       | List running mock servers               |
+| GET    | `/api/logs`                         | View recent request/response logs       |
+| DELETE | `/api/mocks`                        | Delete **all mocks** and stop servers   |
+| DELETE | `/api/mocks/single`                 | Delete specific mock by match params    |
+| DELETE | `/api/mocks/port/{port}?protocol=`  | Remove all mocks for a given port       |
+| DELETE | `/api/mocks/preserve-default?port=...&protocol=...` | Remove all mocks except `isDefault` ones |
 
 ---
 
-##  `curl` Examples
+## 📥 Examples
 
-###  Upload mocks:
+### Upload mocks:
 ```bash
-curl -X POST http://localhost:9000/api/mocks/upload   -F "file=@mocks.json"
+curl -X POST http://localhost:9000/api/mocks/upload      -F "file=@mocks.json"
 ```
 
-###  Check status:
+### Add single mock:
 ```bash
-curl http://localhost:9000/api/status
+curl -X POST http://localhost:9000/api/mocks      -H "Content-Type: application/json"      -d '{"protocol":"http","port":8080,"request":{"method":"GET","path":"/ping"},"response":{"status":200,"body":"pong"}}'
 ```
 
-### 🗑 Clear all mocks:
+### Delete all mocks:
 ```bash
 curl -X DELETE http://localhost:9000/api/mocks
 ```
 
+### Delete mocks from port:
+```bash
+curl -X DELETE "http://localhost:9000/api/mocks/port/8080?protocol=http"
+```
+
+### Preserve only default mocks:
+```bash
+curl -X DELETE "http://localhost:9000/api/mocks/preserve-default?port=8080&protocol=http"
+```
+
+### Delete a specific mock:
+```bash
+curl -X DELETE http://localhost:9000/api/mocks/single      -H "Content-Type: application/json"      -d '{"port":8080,"protocol":"http","match":{"method":"POST","path":"/submit"}}'
+```
+
 ---
 
-##  Log Format
+## 🧾 Log Format
 
 ```json
 [
   {
     "protocol": "http",
     "port": 8080,
-    "method": "GET",
-    "pathOrBody": "/ping",
+    "method": "POST",
+    "pathOrBody": "/submit",
     "matched": true,
     "responseCode": 200,
-    "responseBody": "pong",
-    "durationMs": 3,
-    "timestamp": "2025-04-19T21:45:10Z"
+    "responseBody": "email accepted",
+    "durationMs": 5,
+    "timestamp": "2025-04-21T12:00:00Z"
   }
 ]
 ```
 
 ---
 
-##  Roadmap for v1.1+
+## 📌 Notes
 
-- [ ] Log filtering by protocol, port, date
-- [ ] Log export to file
-- [ ] Extended matchers: `startsWith`, `contains`, JSON path
-- [ ] Contract schema validation
-- [ ] UI dashboard for mock management
-- [ ] WebSocket, UDP, gRPC protocol support
+- Supports `.raw`, `.rawContains`, `.rawStartsWith`, `.rawEndsWith`, `.bodyRegex`, `.jsonPath`, `.isDefault`
+- If no mock matches, and `isDefault: true` is present — it will be used as a fallback
+- TCP mocks match line-by-line messages
 
 ---
 
-##  Author
+## 🛣️ Roadmap v1.1+
 
-MockIn was built by ValentinS as a lightweight, extensible platform to kickstart more advanced developer tools.
+- [ ] Log filtering by date, port, protocol
+- [ ] Export logs as JSON or CSV
+- [ ] Schema validation for mock requests
+- [ ] UI dashboard for managing mocks
+- [ ] WebSocket, UDP, gRPC support
 
-Built with Java + Netty. Fast, flexible, and designed for real-world automation.
+---
+
+## 👨‍💻 Author
+
+Built by **Valentin S.** with ❤️ using Java + Netty  
+For developers who need control over their local services.
+
+---
